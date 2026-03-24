@@ -3,8 +3,8 @@ export function DashboardHeader() {
     <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
       <div className="animate-fade-in-up">
         <h2 className="text-3xl font-bold font-heading text-foreground tracking-tight">Good Morning, Creator.</h2>
-        <p className="text-[var(--foreground-muted)] text-sm mt-1">
-          "The secret of getting ahead is getting started."
+        <p className="text-(--foreground-muted) text-sm mt-1">
+          &ldquo;The secret of getting ahead is getting started.&rdquo;
         </p>
       </div>
       <div className="hidden md:block">

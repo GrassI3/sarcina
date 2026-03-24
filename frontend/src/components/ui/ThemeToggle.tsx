@@ -7,7 +7,10 @@ export function ThemeToggle() {
   const { theme, setTheme, systemTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const id = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   if (!mounted) return <div className="w-5 h-5 flex-shrink-0" />;
 

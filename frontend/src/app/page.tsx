@@ -9,6 +9,7 @@ import { PlannerWidget } from '../components/dashboard/PlannerWidget';
 import { FocusTimerWidget } from '../components/dashboard/FocusTimerWidget';
 import { HabitTrackerWidget } from '../components/dashboard/HabitTrackerWidget';
 import { QuickNotesWidget } from '../components/dashboard/QuickNotesWidget';
+import { QuoteTicker } from '../components/dashboard/QuoteTicker';
 import { Glow } from '../components/ui/Glow';
 
 type UiMode = 'Focus' | 'Chill' | 'Planning';
@@ -16,6 +17,8 @@ type UiMode = 'Focus' | 'Chill' | 'Planning';
 export default function Home() {
   const [uiMode, setUiMode] = useState<UiMode>('Focus');
   const [timerActive, setTimerActive] = useState(false);
+  const leftColSpan = uiMode === 'Focus' ? 'lg:col-span-8' : uiMode === 'Planning' ? 'lg:col-span-5' : 'lg:col-span-4';
+  const rightColSpan = uiMode === 'Focus' ? 'lg:col-span-4' : uiMode === 'Planning' ? 'lg:col-span-7' : 'lg:col-span-8';
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-8 max-w-[1600px] mx-auto w-full h-[calc(100dvh-4rem)] md:h-[100dvh] overflow-y-auto overflow-x-hidden custom-scrollbar pb-24 md:pb-8 selection:bg-fuchsia-500/30 relative">
@@ -42,13 +45,13 @@ export default function Home() {
         >
           
           {/* Left Column - Core Tools */}
-          <div className={`lg:col-span-${uiMode === 'Focus' ? 8 : uiMode === 'Planning' ? 5 : 4} flex flex-col gap-6`}>
+          <div className={`${leftColSpan} flex flex-col gap-6`}>
             <TaskManagerWidget />
             <PlannerWidget />
           </div>
 
           {/* Right Column - Focus & Gamification */}
-          <div className={`lg:col-span-${uiMode === 'Focus' ? 4 : uiMode === 'Planning' ? 7 : 8} flex flex-col gap-6`}>
+          <div className={`${rightColSpan} flex flex-col gap-6`}>
             
             {/* Top Row: Mood & Score */}
             <div className="grid grid-cols-2 gap-4">
@@ -59,6 +62,8 @@ export default function Home() {
                 <DayScore />
               </div>
             </div>
+
+            <QuoteTicker />
 
             <FocusTimerWidget setTimerActive={setTimerActive} />
             <HabitTrackerWidget />

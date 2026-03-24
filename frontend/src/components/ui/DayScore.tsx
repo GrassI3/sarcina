@@ -1,17 +1,70 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useHabits } from '@/lib/HabitContext';
+import { useFocus } from '@/lib/FocusContext';
+import { calculateDayScore } from '@/lib/scoreCalculator';
+
+type TaskSnapshot = {
+  id: string;
+  completed: boolean;
+};
+
+const TASKS_STORAGE_KEY = 'flowstate-tasks';
+const TASKS_UPDATED_EVENT = 'flowstate:tasks-updated';
+
+function readTaskSnapshot(): TaskSnapshot[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    return JSON.parse(raw) as TaskSnapshot[];
+  } catch {
+    return [];
+  }
+}
 
 export function DayScore() {
-  const [score, setScore] = useState(0);
+  const { habits, todayStr } = useHabits();
+  const { focusMinutesToday, focusSessionsToday } = useFocus();
+  const [tasks, setTasks] = useState<TaskSnapshot[]>([]);
 
-  // Simulate score loading for visual effect
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setScore(68); // Example score
-    }, 500);
-    return () => clearTimeout(timer);
+    const updateTasks = () => {
+      setTasks(readTaskSnapshot());
+    };
+
+    updateTasks();
+    window.addEventListener('storage', updateTasks);
+    window.addEventListener(TASKS_UPDATED_EVENT, updateTasks);
+
+    return () => {
+      window.removeEventListener('storage', updateTasks);
+      window.removeEventListener(TASKS_UPDATED_EVENT, updateTasks);
+    };
   }, []);
+
+  const tasksCompleted = tasks.filter((task) => task.completed).length;
+  const habitsCompleted = habits.filter((habit) => habit.lastCompletedDate === todayStr).length;
+  const avgHabitStreak =
+    habits.length > 0
+      ? habits.reduce((sum, habit) => sum + habit.streak, 0) / habits.length
+      : 0;
+
+  const { score, breakdown } = calculateDayScore({
+    tasksCompleted,
+    tasksTotal: tasks.length,
+    habitsCompleted,
+    habitsTotal: habits.length,
+    focusMinutes: focusMinutesToday,
+    focusSessions: focusSessionsToday,
+    habitStreakAverage: avgHabitStreak,
+  });
 
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
@@ -28,7 +81,7 @@ export function DayScore() {
         }}
       />
       
-      <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-wider mb-4 relative z-10 w-full text-center">Smart Day Score</h3>
+      <h3 className="text-xs font-bold text-(--foreground-muted) uppercase tracking-wider mb-4 relative z-10 w-full text-center">Smart Day Score</h3>
       
       <div className="relative w-24 h-24 flex items-center justify-center z-10">
         {/* Background Circle */}
@@ -67,8 +120,8 @@ export function DayScore() {
         </div>
       </div>
       
-      <p className="text-[10px] text-[var(--foreground-muted)] mt-4 text-center">
-        +12 points from habits
+      <p className="text-[10px] text-(--foreground-muted) mt-4 text-center">
+        {`Tasks +${breakdown.tasks} | Habits +${breakdown.habits} | Focus +${breakdown.focus} | Momentum +${breakdown.momentum}`}
       </p>
     </div>
   );

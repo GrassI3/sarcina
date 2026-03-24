@@ -1,13 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 import { useFocus } from "@/lib/FocusContext";
 
-export function FocusTimerWidget() {
+interface FocusTimerWidgetProps {
+  setTimerActive?: (active: boolean) => void;
+}
+
+export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
   const {
     mode, timeLeft, isRunning, progress,
     toggleTimer, resetTimer, handleModeSwitch, formatTime,
   } = useFocus();
+
+  useEffect(() => {
+    setTimerActive?.(isRunning);
+  }, [isRunning, setTimerActive]);
 
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
@@ -81,8 +90,8 @@ export function FocusTimerWidget() {
             isRunning
               ? "bg-white/10 hover:bg-white/20"
               : mode === "work"
-              ? "bg-gradient-to-tr from-violet-600 to-fuchsia-600 shadow-violet-500/30"
-              : "bg-gradient-to-tr from-emerald-500 to-blue-500 shadow-emerald-500/30"
+              ? "bg-linear-to-tr from-violet-600 to-fuchsia-600 shadow-violet-500/30"
+              : "bg-linear-to-tr from-emerald-500 to-blue-500 shadow-emerald-500/30"
           }`}
         >
           {isRunning ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}

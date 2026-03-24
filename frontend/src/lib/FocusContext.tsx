@@ -16,6 +16,9 @@ interface FocusState {
   timeLeft: number;
   isRunning: boolean;
   lastTickAt: number | null; // timestamp for elapsed calculation on reload
+  focusMinutesToday: number;
+  focusSessionsToday: number;
+  statsDate: string;
 }
 
 interface FocusContextType extends FocusState {
@@ -38,43 +41,59 @@ const defaultState: FocusState = {
   timeLeft: 25 * 60,
   isRunning: false,
   lastTickAt: null,
+  focusMinutesToday: 0,
+  focusSessionsToday: 0,
+  statsDate: new Date().toISOString().split("T")[0],
 };
+
+function getInitialFocusState(): FocusState {
+  if (typeof window === "undefined") {
+    return defaultState;
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return defaultState;
+    }
+
+    const parsed: Partial<FocusState> = JSON.parse(saved);
+    const today = new Date().toISOString().split("T")[0];
+
+    const baseState: FocusState = {
+      ...defaultState,
+      ...parsed,
+      statsDate: parsed.statsDate ?? today,
+      focusMinutesToday: parsed.focusMinutesToday ?? 0,
+      focusSessionsToday: parsed.focusSessionsToday ?? 0,
+    };
+
+    const normalizedState =
+      baseState.statsDate === today
+        ? baseState
+        : { ...baseState, statsDate: today, focusMinutesToday: 0, focusSessionsToday: 0 };
+    if (normalizedState.isRunning && normalizedState.lastTickAt) {
+      const elapsed = Math.floor((Date.now() - normalizedState.lastTickAt) / 1000);
+      const newTimeLeft = Math.max(0, normalizedState.timeLeft - elapsed);
+      return { ...normalizedState, timeLeft: newTimeLeft, lastTickAt: Date.now() };
+    }
+
+    return { ...normalizedState, isRunning: false };
+  } catch {
+    return defaultState;
+  }
+}
 
 const FocusContext = createContext<FocusContextType | null>(null);
 
 export function FocusProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<FocusState>(defaultState);
-  const [mounted, setMounted] = useState(false);
+  const [state, setState] = useState<FocusState>(getInitialFocusState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Load from localStorage on mount, restoring running state & correcting for elapsed time
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: FocusState = JSON.parse(saved);
-        if (parsed.isRunning && parsed.lastTickAt) {
-          // Timer was running — calculate how many seconds elapsed since last tick
-          const elapsed = Math.floor((Date.now() - parsed.lastTickAt) / 1000);
-          const newTimeLeft = Math.max(0, parsed.timeLeft - elapsed);
-          setState({ ...parsed, timeLeft: newTimeLeft, lastTickAt: Date.now() });
-        } else {
-          // Timer was stopped — restore state but keep isRunning false
-          setState({ ...parsed, isRunning: false });
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
-    setMounted(true);
-  }, []);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-  }, [state, mounted]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [state]);
 
   const playAlertSound = useCallback(() => {
     try {
@@ -118,7 +137,21 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
             triggerNotification(prev.mode);
             const nextMode = prev.mode === "work" ? "break" : "work";
             const nextTime = nextMode === "work" ? prev.workDuration * 60 : prev.breakDuration * 60;
-            return { ...prev, mode: nextMode, timeLeft: nextTime, isRunning: false, lastTickAt: null };
+            const today = new Date().toISOString().split("T")[0];
+            const shouldReset = prev.statsDate !== today;
+            const completedWorkSession = prev.mode === "work";
+            return {
+              ...prev,
+              mode: nextMode,
+              timeLeft: nextTime,
+              isRunning: false,
+              lastTickAt: null,
+              statsDate: today,
+              focusMinutesToday:
+                (shouldReset ? 0 : prev.focusMinutesToday) + (completedWorkSession ? prev.workDuration : 0),
+              focusSessionsToday:
+                (shouldReset ? 0 : prev.focusSessionsToday) + (completedWorkSession ? 1 : 0),
+            };
           }
           return { ...prev, timeLeft: prev.timeLeft - 1, lastTickAt: Date.now() };
         });
@@ -136,10 +169,10 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
   // Request notification permission
   useEffect(() => {
-    if (mounted && "Notification" in window && Notification.permission === "default") {
+    if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-  }, [mounted]);
+  }, []);
 
   const toggleTimer = useCallback(() => {
     setState((prev) => ({

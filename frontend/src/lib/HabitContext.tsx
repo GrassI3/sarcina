@@ -22,41 +22,41 @@ const STORAGE_KEY = "productivity-habits";
 
 const HabitContext = createContext<HabitContextType | null>(null);
 
-export function HabitProvider({ children }: { children: React.ReactNode }) {
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [mounted, setMounted] = useState(false);
+function getInitialHabits(todayStr: string): Habit[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) {
+    return [];
+  }
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed: Habit[] = JSON.parse(saved);
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-        const updated = parsed.map((habit) => {
-          if (
-            habit.lastCompletedDate &&
-            habit.lastCompletedDate !== todayStr &&
-            habit.lastCompletedDate !== yesterday
-          ) {
-            return { ...habit, streak: 0 };
-          }
-          return habit;
-        });
-        setHabits(updated);
-      } catch {
-        // ignore
+  try {
+    const parsed: Habit[] = JSON.parse(saved);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    return parsed.map((habit) => {
+      if (
+        habit.lastCompletedDate &&
+        habit.lastCompletedDate !== todayStr &&
+        habit.lastCompletedDate !== yesterday
+      ) {
+        return { ...habit, streak: 0 };
       }
-    }
-    setMounted(true);
-  }, [todayStr]);
+      return habit;
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function HabitProvider({ children }: { children: React.ReactNode }) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [habits, setHabits] = useState<Habit[]>(() => getInitialHabits(todayStr));
 
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
-    }
-  }, [habits, mounted]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+  }, [habits]);
 
   const addHabit = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -95,7 +95,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <HabitContext.Provider value={{ habits, mounted, addHabit, toggleHabit, deleteHabit, todayStr }}>
+    <HabitContext.Provider value={{ habits, mounted: true, addHabit, toggleHabit, deleteHabit, todayStr }}>
       {children}
     </HabitContext.Provider>
   );
