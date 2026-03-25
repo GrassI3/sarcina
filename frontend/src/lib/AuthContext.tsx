@@ -19,6 +19,7 @@ import {
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase";
+import { profileApi } from "@/lib/backendApi";
 
 type AuthContextValue = {
   user: User | null;
@@ -40,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
+
+      if (nextUser) {
+        void profileApi.upsertCurrentUserProfile();
+      }
     });
 
     return unsubscribe;

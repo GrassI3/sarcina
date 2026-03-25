@@ -4,11 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   chatApi,
   type ApiChatGroup,
+  type ApiGroupInvite,
   type ApiChatMember,
   type ApiChatMessage,
   type ApiChatTask,
+  type ApiUserDirectoryEntry,
+  inviteApi,
+  profileApi,
 } from "@/lib/backendApi";
 import { useAuth } from "@/lib/AuthContext";
+
+const ACTIVE_GROUP_STORAGE_KEY = "flowstate:teamhub:active-group";
 
 type SharedTask = {
   id: string;
@@ -53,7 +59,7 @@ function formatTime(value: string): string {
 }
 
 export default function TeamChat() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const [groups, setGroups] = useState<ApiChatGroup[]>([]);
@@ -65,6 +71,11 @@ export default function TeamChat() {
   const [newGroupName, setNewGroupName] = useState("");
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteResults, setInviteResults] = useState<ApiUserDirectoryEntry[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [incomingInvites, setIncomingInvites] = useState<ApiGroupInvite[]>([]);
+  const [inviteActionLoadingId, setInviteActionLoadingId] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
   const [newTaskTag, setNewTaskTag] = useState("General");
   const [newTaskAssignee, setNewTaskAssignee] = useState("Unassigned");
@@ -72,6 +83,24 @@ export default function TeamChat() {
   const [error, setError] = useState<string | null>(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [loadingGroupData, setLoadingGroupData] = useState(false);
+
+  const readStoredActiveGroup = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return window.localStorage.getItem(ACTIVE_GROUP_STORAGE_KEY);
+  };
+
+  const writeStoredActiveGroup = (groupId: string | null) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!groupId) {
+      window.localStorage.removeItem(ACTIVE_GROUP_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(ACTIVE_GROUP_STORAGE_KEY, groupId);
+  };
 
   const activeGroup = useMemo(
     () => groups.find((group) => group.id === activeGroupId) ?? null,
@@ -81,23 +110,35 @@ export default function TeamChat() {
   const loadGroups = async (preferredGroupId?: string | null) => {
     setLoadingGroups(true);
     try {
-      const existing = await chatApi.listGroups();
-      setGroups(existing);
-
+      let existing = await chatApi.listGroups();
       if (existing.length === 0) {
-        setActiveGroupId(null);
-        setMembers([]);
-        setMessages([]);
-        setSharedTasks([]);
-        return;
+        const fallback = await chatApi.createGroup({ name: "General" });
+        existing = [fallback];
+
+        try {
+          await chatApi.addMember(fallback.id, {
+            name: user?.displayName || user?.email || "Owner",
+            email: user?.email || undefined,
+            role: "owner",
+          });
+        } catch {
+          // Group creation should still succeed even if owner profile insert fails.
+        }
       }
 
-      const preferred = preferredGroupId && existing.some((group) => group.id === preferredGroupId)
-        ? preferredGroupId
+      setGroups(existing);
+
+      const storedGroupId = readStoredActiveGroup();
+      const preferredCandidate = preferredGroupId ?? storedGroupId;
+      const preferred = preferredCandidate && existing.some((group) => group.id === preferredCandidate)
+        ? preferredCandidate
         : null;
-      setActiveGroupId(preferred ?? existing[0].id);
-    } catch {
-      setError("Could not load chat groups.");
+      const resolved = preferred ?? existing[0].id;
+      setActiveGroupId(resolved);
+      writeStoredActiveGroup(resolved);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load chat groups.";
+      setError(message);
     } finally {
       setLoadingGroups(false);
     }
@@ -114,22 +155,51 @@ export default function TeamChat() {
       setMembers(incomingMembers);
       setMessages(incomingMessages.map(toChatMessage));
       setSharedTasks(incomingTasks.map(toSharedTask));
-    } catch {
-      setError("Could not load group data.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load group data.";
+      setError(message);
     } finally {
       setLoadingGroupData(false);
     }
   };
 
+  const loadIncomingInvites = async () => {
+    try {
+      const invites = await inviteApi.listIncoming();
+      setIncomingInvites(invites);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load invites.";
+      setError(message);
+    }
+  };
+
   useEffect(() => {
-    void loadGroups();
-  }, []);
+    if (loading) {
+      return;
+    }
+
+    if (!user) {
+      setGroups([]);
+      setActiveGroupId(null);
+      setMembers([]);
+      setMessages([]);
+      setSharedTasks([]);
+      setIncomingInvites([]);
+      writeStoredActiveGroup(null);
+      return;
+    }
+
+    void profileApi.upsertCurrentUserProfile();
+    void loadGroups(activeGroupId);
+    void loadIncomingInvites();
+  }, [loading, user]);
 
   useEffect(() => {
     if (!activeGroupId) {
       return;
     }
 
+    writeStoredActiveGroup(activeGroupId);
     void loadActiveGroupData(activeGroupId);
   }, [activeGroupId]);
 
@@ -149,15 +219,21 @@ export default function TeamChat() {
     try {
       setError(null);
       const created = await chatApi.createGroup({ name: trimmed });
-      await chatApi.addMember(created.id, {
-        name: user?.displayName || user?.email || "Owner",
-        email: user?.email || undefined,
-        role: "owner",
-      });
+      try {
+        await chatApi.addMember(created.id, {
+          name: user?.displayName || user?.email || "Owner",
+          email: user?.email || undefined,
+          role: "owner",
+        });
+      } catch {
+        // Do not block group creation when owner metadata write fails.
+      }
       await loadGroups(created.id);
+      await loadActiveGroupData(created.id);
       setNewGroupName("");
-    } catch {
-      setError("Could not create group.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create group.";
+      setError(message);
     }
   };
 
@@ -170,8 +246,9 @@ export default function TeamChat() {
       setError(null);
       await chatApi.removeGroup(groupId);
       await loadGroups();
-    } catch {
-      setError("Could not delete group.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not delete group.";
+      setError(message);
     }
   };
 
@@ -195,8 +272,10 @@ export default function TeamChat() {
       setMembers((prev) => [...prev, created]);
       setNewMemberName("");
       setNewMemberEmail("");
-    } catch {
-      setError("Could not add member.");
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not add member.";
+      setError(message);
     }
   };
 
@@ -211,9 +290,96 @@ export default function TeamChat() {
     try {
       setError(null);
       await chatApi.removeMember(activeGroupId, memberId);
-    } catch {
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
       setMembers(snapshot);
-      setError("Could not remove member.");
+      const message = error instanceof Error ? error.message : "Could not remove member.";
+      setError(message);
+    }
+  };
+
+  const searchUsersForInvite = async () => {
+    const trimmed = inviteQuery.trim();
+    if (!trimmed) {
+      setInviteResults([]);
+      return;
+    }
+
+    setSearchingUsers(true);
+    try {
+      setError(null);
+      const users = await profileApi.searchUsers(trimmed);
+      setInviteResults(users);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not search users.";
+      setError(message);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const sendInvite = async (target: ApiUserDirectoryEntry) => {
+    if (!activeGroupId || !activeGroup) {
+      return;
+    }
+
+    const alreadyMember = members.some(
+      (member) =>
+        (target.email && member.email && member.email.toLowerCase() === target.email.toLowerCase()) ||
+        member.name.toLowerCase() === target.name.toLowerCase()
+    );
+    if (alreadyMember) {
+      setError(`${target.name} is already in this group.`);
+      return;
+    }
+
+    setInviteActionLoadingId(target.uid);
+    try {
+      setError(null);
+      await inviteApi.send({
+        groupId: activeGroupId,
+        groupName: activeGroup.name,
+        targetUserId: target.uid,
+        targetName: target.name,
+        targetEmail: target.email,
+      });
+      setInviteQuery("");
+      setInviteResults([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send invite.";
+      setError(message);
+    } finally {
+      setInviteActionLoadingId(null);
+    }
+  };
+
+  const acceptInvite = async (inviteId: string) => {
+    setInviteActionLoadingId(inviteId);
+    try {
+      setError(null);
+      const result = await inviteApi.accept(inviteId);
+      await loadIncomingInvites();
+      await loadGroups(result.invite.groupId);
+      await loadActiveGroupData(result.invite.groupId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not accept invite.";
+      setError(message);
+    } finally {
+      setInviteActionLoadingId(null);
+    }
+  };
+
+  const declineInvite = async (inviteId: string) => {
+    setInviteActionLoadingId(inviteId);
+    try {
+      setError(null);
+      await inviteApi.decline(inviteId);
+      await loadIncomingInvites();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not decline invite.";
+      setError(message);
+    } finally {
+      setInviteActionLoadingId(null);
     }
   };
 
@@ -246,9 +412,11 @@ export default function TeamChat() {
         assignee: optimistic.assignee,
       });
       setSharedTasks((prev) => prev.map((task) => (task.id === optimistic.id ? toSharedTask(created) : task)));
-    } catch {
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
       setSharedTasks((prev) => prev.filter((task) => task.id !== optimistic.id));
-      setError("Could not create task.");
+      const message = error instanceof Error ? error.message : "Could not create task.";
+      setError(message);
     }
   };
 
@@ -269,9 +437,11 @@ export default function TeamChat() {
       if (target) {
         await chatApi.patchTask(activeGroupId, taskId, { completed: target.completed });
       }
-    } catch {
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
       setSharedTasks(snapshot);
-      setError("Could not update task status.");
+      const message = error instanceof Error ? error.message : "Could not update task status.";
+      setError(message);
     }
   };
 
@@ -287,9 +457,11 @@ export default function TeamChat() {
     try {
       setError(null);
       await chatApi.patchTask(activeGroupId, taskId, { assignee: nextAssignee });
-    } catch {
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
       setSharedTasks(snapshot);
-      setError("Could not assign task.");
+      const message = error instanceof Error ? error.message : "Could not assign task.";
+      setError(message);
     }
   };
 
@@ -321,9 +493,11 @@ export default function TeamChat() {
         text: trimmed,
       });
       setMessages((prev) => prev.map((message) => (message.id === optimistic.id ? toChatMessage(created) : message)));
-    } catch {
+      await loadActiveGroupData(activeGroupId);
+    } catch (error) {
       setMessages((prev) => prev.filter((message) => message.id !== optimistic.id));
-      setError("Could not send message.");
+      const message = error instanceof Error ? error.message : "Could not send message.";
+      setError(message);
     }
   };
 
@@ -400,8 +574,92 @@ export default function TeamChat() {
             </div>
           </div>
 
+          <div className="glass-card p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-(--foreground-muted) mb-2">Invites</p>
+            <div className="space-y-2">
+              {incomingInvites.filter((invite) => invite.status === "pending").length === 0 ? (
+                <p className="text-xs text-(--foreground-muted)">No pending invites.</p>
+              ) : (
+                incomingInvites
+                  .filter((invite) => invite.status === "pending")
+                  .map((invite) => (
+                    <div key={invite.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="text-sm text-foreground">{invite.groupName}</p>
+                      <p className="text-[11px] text-(--foreground-muted)">Invited by {invite.fromName}</p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void acceptInvite(invite.id)}
+                          disabled={inviteActionLoadingId === invite.id}
+                          className="rounded-md bg-electric-blue/20 text-electric-blue px-2 py-1 text-[11px] hover:bg-electric-blue/30 disabled:opacity-60"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void declineInvite(invite.id)}
+                          disabled={inviteActionLoadingId === invite.id}
+                          className="rounded-md border border-rose-300/30 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-300/10 disabled:opacity-60"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+
           <div className="glass-card p-4 flex-1 min-h-60">
             <p className="text-xs uppercase tracking-[0.18em] text-(--foreground-muted) mb-2">Members</p>
+            <div className="space-y-2 mb-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={inviteQuery}
+                  onChange={(event) => setInviteQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void searchUsersForInvite();
+                    }
+                  }}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                  placeholder="Search name or email to invite"
+                />
+                <button
+                  type="button"
+                  onClick={() => void searchUsersForInvite()}
+                  className="rounded-lg bg-white/10 px-3 py-2 text-xs hover:bg-white/20"
+                >
+                  Search
+                </button>
+              </div>
+
+              {searchingUsers ? <p className="text-[11px] text-(--foreground-muted)">Searching users...</p> : null}
+              {!searchingUsers && inviteQuery.trim() && inviteResults.length === 0 ? (
+                <p className="text-[11px] text-(--foreground-muted)">No users found.</p>
+              ) : null}
+
+              {inviteResults.map((entry) => (
+                <div key={entry.uid} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm text-foreground">{entry.name}</p>
+                    <p className="text-[11px] text-(--foreground-muted)">{entry.email ?? "No email"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void sendInvite(entry)}
+                    disabled={!activeGroupId || inviteActionLoadingId === entry.uid}
+                    className="rounded-md bg-electric-blue/20 text-electric-blue px-2 py-1 text-[11px] hover:bg-electric-blue/30 disabled:opacity-60"
+                  >
+                    Invite
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] uppercase tracking-[0.14em] text-(--foreground-muted) mb-2">Quick Add (manual)</p>
             <div className="flex gap-2 mb-3">
               <input
                 type="text"

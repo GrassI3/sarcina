@@ -4,29 +4,18 @@ import { useEffect, useState } from 'react';
 import { useHabits } from '@/lib/HabitContext';
 import { useFocus } from '@/lib/FocusContext';
 import { calculateDayScore } from '@/lib/scoreCalculator';
+import { TASKS_UPDATED_EVENT, getInitialTasks, syncTasks } from '@/lib/tasks';
 
 type TaskSnapshot = {
   id: string;
   completed: boolean;
 };
 
-const TASKS_STORAGE_KEY = 'flowstate-tasks';
-const TASKS_UPDATED_EVENT = 'flowstate:tasks-updated';
-
 function readTaskSnapshot(): TaskSnapshot[] {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    return JSON.parse(raw) as TaskSnapshot[];
-  } catch {
-    return [];
-  }
+  return getInitialTasks().map((task) => ({
+    id: task.id,
+    completed: task.completed,
+  }));
 }
 
 export function DayScore() {
@@ -39,12 +28,15 @@ export function DayScore() {
       setTasks(readTaskSnapshot());
     };
 
-    updateTasks();
-    window.addEventListener('storage', updateTasks);
+    const bootstrap = async () => {
+      await syncTasks();
+      updateTasks();
+    };
+
+    void bootstrap();
     window.addEventListener(TASKS_UPDATED_EVENT, updateTasks);
 
     return () => {
-      window.removeEventListener('storage', updateTasks);
       window.removeEventListener(TASKS_UPDATED_EVENT, updateTasks);
     };
   }, []);

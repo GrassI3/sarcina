@@ -65,6 +65,27 @@ export interface ApiChatMember {
   role: string;
 }
 
+export interface ApiUserDirectoryEntry {
+  uid: string;
+  name: string;
+  email?: string;
+  photoURL?: string;
+}
+
+export interface ApiGroupInvite {
+  id: string;
+  groupId: string;
+  groupName: string;
+  fromUserId: string;
+  fromName: string;
+  fromEmail?: string;
+  toUserId: string;
+  toName: string;
+  toEmail?: string;
+  status: "pending" | "accepted" | "declined";
+  createdAt: string;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -74,6 +95,13 @@ let authBootstrapPromise: Promise<void> | null = null;
 function waitForAuthBootstrap(): Promise<void> {
   if (firebaseAuth.currentUser) {
     return Promise.resolve();
+  }
+
+  const authWithReady = firebaseAuth as typeof firebaseAuth & {
+    authStateReady?: () => Promise<void>;
+  };
+  if (typeof authWithReady.authStateReady === "function") {
+    return authWithReady.authStateReady();
   }
 
   if (authBootstrapPromise) {
@@ -86,7 +114,10 @@ function waitForAuthBootstrap(): Promise<void> {
       resolve();
     }, 15000);
 
-    const unsubscribe = onAuthStateChanged(firebaseAuth, () => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+      if (!user) {
+        return;
+      }
       window.clearTimeout(timeout);
       unsubscribe();
       resolve();
@@ -182,6 +213,31 @@ function toApiChatMember(raw: Record<string, unknown>, id: string): ApiChatMembe
   };
 }
 
+function toApiUserDirectoryEntry(raw: Record<string, unknown>, uid: string): ApiUserDirectoryEntry {
+  return {
+    uid,
+    name: String(raw.name ?? "User"),
+    email: typeof raw.email === "string" ? raw.email : undefined,
+    photoURL: typeof raw.photoURL === "string" ? raw.photoURL : undefined,
+  };
+}
+
+function toApiGroupInvite(raw: Record<string, unknown>, id: string): ApiGroupInvite {
+  return {
+    id,
+    groupId: String(raw.groupId ?? ""),
+    groupName: String(raw.groupName ?? "Group"),
+    fromUserId: String(raw.fromUserId ?? ""),
+    fromName: String(raw.fromName ?? "User"),
+    fromEmail: typeof raw.fromEmail === "string" ? raw.fromEmail : undefined,
+    toUserId: String(raw.toUserId ?? ""),
+    toName: String(raw.toName ?? "User"),
+    toEmail: typeof raw.toEmail === "string" ? raw.toEmail : undefined,
+    status: raw.status === "accepted" || raw.status === "declined" ? raw.status : "pending",
+    createdAt: String(raw.createdAt ?? nowIso()),
+  };
+}
+
 async function listByCreatedAt(path: string) {
   const col = await userCollection(path);
   const snaps = await getDocs(col);
@@ -230,6 +286,26 @@ async function chatGroupTasksCollection(groupId: string) {
 async function chatGroupTaskDoc(groupId: string, taskId: string) {
   const user = await getAuthedUser();
   return doc(firestoreDb, "users", user.uid, "chatGroups", groupId, "tasks", taskId);
+}
+
+function directoryDoc(uid: string) {
+  return doc(firestoreDb, "userDirectory", uid);
+}
+
+function userInviteCollection(uid: string) {
+  return collection(firestoreDb, "users", uid, "groupInvites");
+}
+
+function userInviteDoc(uid: string, inviteId: string) {
+  return doc(firestoreDb, "users", uid, "groupInvites", inviteId);
+}
+
+async function chatGroupDocForUser(uid: string, groupId: string) {
+  return doc(firestoreDb, "users", uid, "chatGroups", groupId);
+}
+
+async function chatGroupMemberDocForUser(uid: string, groupId: string, memberId: string) {
+  return doc(firestoreDb, "users", uid, "chatGroups", groupId, "members", memberId);
 }
 
 export const taskApi = {
@@ -318,6 +394,45 @@ export const noteApi = {
   },
 };
 
+export const profileApi = {
+  upsertCurrentUserProfile: async () => {
+    const user = await getAuthedUser();
+    const ref = directoryDoc(user.uid);
+    await setDoc(
+      ref,
+      {
+        uid: user.uid,
+        name: user.displayName || user.email || "User",
+        email: user.email || null,
+        photoURL: user.photoURL || null,
+        updatedAt: nowIso(),
+      },
+      { merge: true }
+    );
+  },
+  searchUsers: async (query: string) => {
+    const currentUser = await getAuthedUser();
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) {
+      return [] as ApiUserDirectoryEntry[];
+    }
+
+    const snaps = await getDocs(collection(firestoreDb, "userDirectory"));
+    const matches = snaps.docs
+      .map((snap) => toApiUserDirectoryEntry(snap.data() as Record<string, unknown>, snap.id))
+      .filter((entry) => {
+        if (entry.uid === currentUser.uid) {
+          return false;
+        }
+        const haystack = `${entry.name} ${entry.email ?? ""}`.toLowerCase();
+        return haystack.includes(normalized);
+      })
+      .slice(0, 8);
+
+    return matches;
+  },
+};
+
 export const chatApi = {
   listGroups: async () => {
     const col = await chatGroupsCollection();
@@ -341,6 +456,21 @@ export const chatApi = {
     return value;
   },
   removeGroup: async (groupId: string) => {
+    const [members, messages, tasks] = await Promise.all([
+      chatApi.listMembers(groupId),
+      chatApi.listMessages(groupId),
+      chatApi.listTasks(groupId),
+    ]);
+
+    await Promise.all([
+      ...members.map((member) => chatApi.removeMember(groupId, member.id)),
+      ...messages.map(async (message) => {
+        const messageRef = await chatGroupMessageDoc(groupId, message.id);
+        await deleteDoc(messageRef);
+      }),
+      ...tasks.map((task) => chatApi.removeTask(groupId, task.id)),
+    ]);
+
     const ref = await chatGroupDoc(groupId);
     await deleteDoc(ref);
     return { status: "ok" };
@@ -425,6 +555,98 @@ export const chatApi = {
   removeTask: async (groupId: string, id: string) => {
     const ref = await chatGroupTaskDoc(groupId, id);
     await deleteDoc(ref);
+    return { status: "ok" };
+  },
+};
+
+export const inviteApi = {
+  listIncoming: async () => {
+    const user = await getAuthedUser();
+    const col = userInviteCollection(user.uid);
+    const snaps = await getDocs(col);
+    return snaps.docs
+      .map((snap) => toApiGroupInvite(snap.data() as Record<string, unknown>, snap.id))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  send: async (payload: {
+    groupId: string;
+    groupName: string;
+    targetUserId: string;
+    targetName: string;
+    targetEmail?: string;
+  }) => {
+    const sender = await getAuthedUser();
+    const inviteId = crypto.randomUUID();
+    const invite: ApiGroupInvite = {
+      id: inviteId,
+      groupId: payload.groupId,
+      groupName: payload.groupName,
+      fromUserId: sender.uid,
+      fromName: sender.displayName || sender.email || "User",
+      fromEmail: sender.email || undefined,
+      toUserId: payload.targetUserId,
+      toName: payload.targetName,
+      toEmail: payload.targetEmail,
+      status: "pending",
+      createdAt: nowIso(),
+    };
+
+    const ref = userInviteDoc(payload.targetUserId, inviteId);
+    await setDoc(ref, invite);
+    return invite;
+  },
+  accept: async (inviteId: string) => {
+    const user = await getAuthedUser();
+    const inviteRef = userInviteDoc(user.uid, inviteId);
+    const inviteSnap = await getDoc(inviteRef);
+    if (!inviteSnap.exists()) {
+      throw new Error("Invite no longer exists");
+    }
+
+    const invite = toApiGroupInvite(inviteSnap.data() as Record<string, unknown>, inviteSnap.id);
+    const groupRef = await chatGroupDocForUser(user.uid, invite.groupId);
+    const groupSnap = await getDoc(groupRef);
+
+    if (!groupSnap.exists()) {
+      await setDoc(groupRef, {
+        id: invite.groupId,
+        name: invite.groupName,
+        createdAt: nowIso(),
+        invitedBy: invite.fromUserId,
+      });
+    }
+
+    const selfMemberRef = await chatGroupMemberDocForUser(user.uid, invite.groupId, user.uid);
+    await setDoc(
+      selfMemberRef,
+      {
+        id: user.uid,
+        name: user.displayName || user.email || "You",
+        email: user.email || null,
+        role: "member",
+      },
+      { merge: true }
+    );
+
+    const inviterMemberRef = await chatGroupMemberDocForUser(user.uid, invite.groupId, invite.fromUserId);
+    await setDoc(
+      inviterMemberRef,
+      {
+        id: invite.fromUserId,
+        name: invite.fromName,
+        email: invite.fromEmail || null,
+        role: "owner",
+      },
+      { merge: true }
+    );
+
+    await updateDoc(inviteRef, { status: "accepted", respondedAt: nowIso() });
+    return { status: "ok" as const, invite };
+  },
+  decline: async (inviteId: string) => {
+    const user = await getAuthedUser();
+    const ref = userInviteDoc(user.uid, inviteId);
+    await updateDoc(ref, { status: "declined", respondedAt: nowIso() });
     return { status: "ok" };
   },
 };
