@@ -1,14 +1,23 @@
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  onOpenNewTask: () => void;
+}
+
+export function DashboardHeader({ onOpenNewTask }: DashboardHeaderProps) {
   return (
-    <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div className="animate-fade-in-up">
-        <h2 className="text-3xl font-bold font-heading text-foreground tracking-tight">Good Morning, Creator.</h2>
-        <p className="text-(--foreground-muted) text-sm mt-1">
-          &ldquo;The secret of getting ahead is getting started.&rdquo;
+    <header className="mb-6 md:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-5">
+      <div className="animate-fade-in-up space-y-2">
+        <p className="text-xs uppercase tracking-[0.22em] text-(--foreground-muted)">FlowState Workspace</p>
+        <h2 className="text-3xl md:text-4xl font-semibold font-heading text-foreground tracking-tight">Your day, designed for deep work.</h2>
+        <p className="text-(--foreground-muted) text-sm md:text-base max-w-2xl">
+          Plan intentionally, execute in focused blocks, and keep your priorities visible across tasks, habits, and team updates.
         </p>
       </div>
       <div className="hidden md:block">
-         <button className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-foreground text-sm font-semibold transition-all border border-white/5 shadow-sm hover:shadow-[0_0_15px_var(--glass-glow)] hover:-translate-y-0.5">
+         <button
+           type="button"
+           onClick={onOpenNewTask}
+           className="px-5 py-2.5 rounded-xl bg-black text-white dark:bg-white dark:text-black text-sm font-semibold transition-all shadow-[0_8px_24px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_24px_rgba(255,255,255,0.08)] hover:-translate-y-0.5"
+         >
            + New Task
          </button>
       </div>

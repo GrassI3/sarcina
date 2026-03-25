@@ -2,16 +2,21 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { task } = await request.json();
+    const body = await request.json();
+    const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+    const backendResponse = await fetch(`${backendBaseUrl}/api/agent/breakdown`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
 
-    // Mock LLM response for sub-tasks
-    const subTasks = [
-      { id: `sub-${Date.now()}-1`, text: `Sub-task 1 for "${task.text}"`, completed: false },
-      { id: `sub-${Date.now()}-2`, text: `Sub-task 2 for "${task.text}"`, completed: false },
-      { id: `sub-${Date.now()}-3`, text: `Sub-task 3 for "${task.text}"`, completed: false },
-    ];
+    if (!backendResponse.ok) {
+      throw new Error(`Backend breakdown failed with ${backendResponse.status}`);
+    }
 
-    return NextResponse.json({ subTasks });
+    const data = await backendResponse.json();
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error in AI breakdown:', error);
     return new Response('Internal Server Error', { status: 500 });

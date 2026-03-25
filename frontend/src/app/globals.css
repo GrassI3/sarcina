@@ -4,76 +4,68 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Light mode palette mappings */
-  --background-panel: rgba(255, 255, 255, 0.6);
-  --foreground-muted: #64748B;
+  --radius: 1rem;
 
-  /* Electric accent colors (slightly darker/richer for light mode legibility if needed, but keeping vibrant for aesthetic) */
-  --accent-electric-blue: #00F0FF;
-  --accent-neon-purple: #B026FF;
-  --accent-vibrant-green: #39FF14;
-  --accent-energy-low: #0099FF; 
-  --accent-energy-med: #9000FF; 
-  --accent-energy-high: #E60039; 
+  --background: #f7f7f7;
+  --foreground: #0f0f0f;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #111111;
+  --primary-foreground: #ffffff;
+  --secondary: #ececec;
+  --secondary-foreground: #111111;
+  --muted: #efefef;
+  --muted-foreground: #5f5f5f;
+  --accent: #e8e8e8;
+  --accent-foreground: #111111;
+  --destructive: #b91c1c;
+  --border: #d8d8d8;
+  --input: #d8d8d8;
+  --ring: #0f0f0f;
 
-  /* Surface borders for glassmorphism */
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-glow: rgba(0, 240, 255, 0.15);
-  
-  /* Shadcn / Base Colors (Light Mode) */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
-
-  /* Custom Glass & Cyberpunk Variables */
-  --background-panel: rgba(22, 27, 34, 0.6);
-  --foreground-muted: #94A3B8;
-  --accent-electric-blue: #00F0FF;
-  --accent-neon-purple: #B026FF;
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-glow: rgba(0, 240, 255, 0.15);
+  --background-panel: rgba(255, 255, 255, 0.88);
+  --foreground-muted: #686868;
+  --accent-electric-blue: #111111;
+  --accent-neon-purple: #3a3a3a;
+  --accent-vibrant-green: #1f1f1f;
+  --accent-energy-low: #1f1f1f;
+  --accent-energy-med: #3a3a3a;
+  --accent-energy-high: #545454;
+  --glass-border: rgba(0, 0, 0, 0.12);
+  --glass-glow: rgba(0, 0, 0, 0.2);
 }
 
 .dark {
-  /* Custom App Variables */
-  --background-panel: rgba(22, 27, 34, 0.6);
-  --foreground-muted: #94A3B8;
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-glow: rgba(0, 240, 255, 0.15);
+  --background: #060606;
+  --foreground: #f3f3f3;
+  --card: #111111;
+  --card-foreground: #f3f3f3;
+  --popover: #111111;
+  --popover-foreground: #f3f3f3;
+  --primary: #f3f3f3;
+  --primary-foreground: #0b0b0b;
+  --secondary: #171717;
+  --secondary-foreground: #f3f3f3;
+  --muted: #1e1e1e;
+  --muted-foreground: #a3a3a3;
+  --accent: #222222;
+  --accent-foreground: #f3f3f3;
+  --border: #2f2f2f;
+  --input: #2f2f2f;
+  --ring: #f1f1f1;
 
-  --accent-energy-low: #00F0FF; 
-  --accent-energy-med: #B026FF; 
-  --accent-energy-high: #FF1053; 
-
-  /* Shadcn dark mode */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --background-panel: rgba(13, 13, 13, 0.9);
+  --foreground-muted: #9e9e9e;
+  --accent-electric-blue: #f3f3f3;
+  --accent-neon-purple: #cfcfcf;
+  --accent-vibrant-green: #e3e3e3;
+  --accent-energy-low: #d2d2d2;
+  --accent-energy-med: #e3e3e3;
+  --accent-energy-high: #fafafa;
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-glow: rgba(255, 255, 255, 0.13);
 }
 
 @theme inline {
@@ -96,38 +88,44 @@ body {
   width: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.35), transparent 40%),
+    radial-gradient(circle at 100% 10%, rgba(0, 0, 0, 0.07), transparent 35%),
+    linear-gradient(180deg, var(--background) 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-manrope), "Segoe UI", sans-serif;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.09), transparent 38%),
+    radial-gradient(circle at 100% 10%, rgba(255, 255, 255, 0.04), transparent 35%),
+    linear-gradient(180deg, #050505 0%, #090909 100%);
+}
+
 .glass-card,
 .widget {
   background: var(--background-panel);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(18px);
   border: 1px solid var(--glass-border);
-  border-radius: 1rem;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  border-radius: 1.1rem;
+  box-shadow: 0 18px 40px rgba(8, 12, 24, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: transform 180ms ease, box-shadow 220ms ease, border-color 220ms ease;
 }
 
 .widget:hover,
 .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: color-mix(in oklab, var(--accent-electric-blue) 25%, var(--glass-border));
+  box-shadow: 0 24px 50px rgba(8, 8, 8, 0.2), 0 0 0 1px color-mix(in oklab, var(--accent-electric-blue) 14%, transparent);
+  transform: translateY(-1px);
 }
 
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-}
 
 @keyframes fade-in-up {
   from {
@@ -163,8 +161,19 @@ body {
   }
 }
 
+@keyframes soft-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .animate-fade-in-up {
-  animation: fade-in-up 0.4s ease-out both;
+  animation: soft-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-pulse-slow {
@@ -173,4 +182,9 @@ body {
 
 .animate-blob {
   animation: blob 11s ease-in-out infinite;
+}
+
+.font-heading {
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  letter-spacing: -0.015em;
 }

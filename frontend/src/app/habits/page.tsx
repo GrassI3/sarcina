@@ -15,13 +15,13 @@ export default function HabitsPage() {
   };
 
   if (!mounted) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <div className="animate-pulse bg-slate-900/50 rounded-3xl h-[500px] w-full max-w-[500px]" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 w-full h-[calc(100dvh-4rem)] md:h-[100dvh] overflow-y-auto overflow-x-hidden custom-scrollbar pb-24 md:pb-8 relative">
+    <div className="min-h-screen p-4 md:p-8 w-full h-[calc(100dvh-4rem)] md:h-[100dvh] overflow-y-auto overflow-x-hidden pb-24 md:pb-8 relative">
       <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-b from-emerald-500/15 via-emerald-500/5 to-transparent pointer-events-none mix-blend-screen" />
 
       <div className="relative z-10 flex flex-col gap-6 items-center justify-start pt-8">
@@ -54,7 +54,7 @@ export default function HabitsPage() {
           </form>
 
           {/* Habits list */}
-          <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
             {habits.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-white/30 space-y-4 py-12">
                 <div className="w-16 h-16 rounded-full border border-dashed border-white/20 flex items-center justify-center">
@@ -63,7 +63,7 @@ export default function HabitsPage() {
                 <p className="text-sm">No habits yet. Start small.</p>
               </div>
             ) : (
-              habits.map((habit) => {
+              habits.map((habit: any) => {
                 const isCompletedToday = habit.lastCompletedDate === todayStr;
                 const progressPct = Math.min(100, (habit.streak / 7) * 100);
                 return (

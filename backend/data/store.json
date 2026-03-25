@@ -1,0 +1,53 @@
+{
+  "tasks": [
+    {
+      "id": "ef1ec2da-e6df-466e-984a-4c4e35278a43",
+      "text": "On next tuesday",
+      "completed": false,
+      "subTasks": [],
+      "dueDate": "2026-03-31",
+      "updatedAt": "2026-03-25T03:51:24.207418"
+    },
+    {
+      "id": "37ba344b-e1a4-4abf-bc19-51ef4c3b19d4",
+      "text": "On next sundayfor my meeting and also",
+      "completed": false,
+      "subTasks": [],
+      "dueDate": "2026-03-30",
+      "updatedAt": "2026-03-25T03:51:24.654870"
+    },
+    {
+      "id": "9c43672f-b852-470a-9789-012f95263a90",
+      "text": "On next sundayfor my meeting",
+      "completed": false,
+      "subTasks": [],
+      "dueDate": "2026-03-29",
+      "updatedAt": "2026-03-25T03:51:22.733769"
+    },
+    {
+      "id": "b31d872d-14dc-4c64-9e34-5aae0c6a8be8",
+      "text": "A date with girlfriend",
+      "completed": false,
+      "subTasks": [],
+      "dueDate": "2026-03-30",
+      "updatedAt": "2026-03-25T03:51:23.081831"
+    }
+  ],
+  "habits": [],
+  "quick_note": {
+    "id": "quick-note",
+    "text": "",
+    "savedAt": "2026-03-25T03:55:24.878010"
+  },
+  "chat_messages": [],
+  "chat_tasks": [
+    {
+      "id": "6501541d-1575-4284-acfd-df583ff29d00",
+      "text": "Limitations bro",
+      "completed": false,
+      "tag": "General",
+      "assignee": "You",
+      "updatedAt": "2026-03-25T03:36:09.590556"
+    }
+  ]
+}

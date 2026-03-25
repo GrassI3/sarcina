@@ -1,28 +1,22 @@
 import { NextResponse } from 'next/server';
 
-type OrchestrationTask = {
-  id?: string;
-  text: string;
-  completed?: boolean;
-};
-
 export async function POST(request: Request) {
   try {
-    const {
-      tasks = [],
-      planner,
-      mood,
-    }: { tasks?: OrchestrationTask[]; planner?: unknown; mood?: string } = await request.json();
+    const body = await request.json();
+    const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+    const backendResponse = await fetch(`${backendBaseUrl}/api/agent/orchestrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
 
-    // Mock LLM response
-    const priorityScores = tasks.map((task) => ({
-      ...task,
-      priorityScore: Math.random(),
-    }));
+    if (!backendResponse.ok) {
+      throw new Error(`Backend orchestration failed with ${backendResponse.status}`);
+    }
 
-    const ambientTheme = mood === 'Focus' ? 'fuchsia-500/30' : 'emerald-500/20';
-
-    return NextResponse.json({ priorityScores, ambientTheme, hasPlanner: Boolean(planner) });
+    const data = await backendResponse.json();
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error in AI orchestration:', error);
     return new Response('Internal Server Error', { status: 500 });

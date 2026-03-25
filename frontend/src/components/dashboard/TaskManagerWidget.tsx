@@ -1,44 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface SubTask {
-  id: string;
-  text: string;
-  completed: boolean;
-}
-
-interface Task {
-  id: string;
-  text: string;
-  completed: boolean;
-  subTasks: SubTask[];
-}
-
-const TASKS_STORAGE_KEY = "flowstate-tasks";
-const TASKS_UPDATED_EVENT = "flowstate:tasks-updated";
-
-const defaultTasks: Task[] = [
-  { id: "1", text: "Implement AI-driven UI", completed: false, subTasks: [] },
-  { id: "2", text: "Design the new logo", completed: true, subTasks: [] },
-  { id: "3", text: "Deploy to Vercel", completed: false, subTasks: [] },
-];
-
-function getInitialTasks(): Task[] {
-  if (typeof window === "undefined") {
-    return defaultTasks;
-  }
-
-  try {
-    const saved = localStorage.getItem(TASKS_STORAGE_KEY);
-    if (!saved) {
-      return defaultTasks;
-    }
-    return JSON.parse(saved) as Task[];
-  } catch {
-    return defaultTasks;
-  }
-}
+import {
+  TASKS_UPDATED_EVENT,
+  type SubTask,
+  type Task,
+  createTask,
+  appendTask,
+  getInitialTasks,
+  syncTasks,
+  updateTask,
+} from "@/lib/tasks";
 
 export function TaskManagerWidget() {
   const [tasks, setTasks] = useState<Task[]>(getInitialTasks);
@@ -47,9 +19,28 @@ export function TaskManagerWidget() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
-    window.dispatchEvent(new Event(TASKS_UPDATED_EVENT));
-  }, [tasks]);
+    const load = async () => {
+      try {
+        const latest = await syncTasks();
+        setTasks(latest);
+      } catch {
+        setErrorMessage("Could not load tasks from backend.");
+      }
+    };
+
+    load();
+  }, []);
+
+  useEffect(() => {
+    const handleTasksUpdated = () => {
+      setTasks([...getInitialTasks()]);
+    };
+
+    window.addEventListener(TASKS_UPDATED_EVENT, handleTasksUpdated);
+    return () => {
+      window.removeEventListener(TASKS_UPDATED_EVENT, handleTasksUpdated);
+    };
+  }, []);
 
   const handleBreakDown = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
@@ -72,25 +63,24 @@ export function TaskManagerWidget() {
       const { subTasks } = (await response.json()) as { subTasks?: SubTask[] };
       const normalizedSubTasks = Array.isArray(subTasks) ? subTasks : [];
 
-      setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id !== taskId) {
-            return t;
-          }
+      const target = tasks.find((t) => t.id === taskId);
+      if (!target) {
+        return;
+      }
 
-          const merged = [...t.subTasks];
-          for (const subTask of normalizedSubTasks) {
-            const alreadyExists = merged.some(
-              (existing) => existing.id === subTask.id || existing.text === subTask.text
-            );
-            if (!alreadyExists) {
-              merged.push(subTask);
-            }
-          }
+      const merged = [...target.subTasks];
+      for (const subTask of normalizedSubTasks) {
+        const alreadyExists = merged.some(
+          (existing) => existing.id === subTask.id || existing.text === subTask.text
+        );
+        if (!alreadyExists) {
+          merged.push(subTask);
+        }
+      }
 
-          return { ...t, subTasks: merged };
-        })
-      );
+      const optimistic = tasks.map((t) => (t.id === taskId ? { ...t, subTasks: merged } : t));
+      setTasks(optimistic);
+      await updateTask(taskId, { subTasks: merged });
     } catch {
       setErrorMessage("Could not break down this task right now. Please try again.");
     } finally {
@@ -98,30 +88,41 @@ export function TaskManagerWidget() {
     }
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     const trimmed = newTask.trim();
     if (!trimmed) {
       return;
     }
 
-    setTasks((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        text: trimmed,
-        completed: false,
-        subTasks: [],
-      },
-    ]);
+    const optimistic = createTask(trimmed);
+    setTasks((prev) => [...prev, optimistic]);
     setNewTask("");
+
+    try {
+      const created = await appendTask(trimmed);
+      setTasks((prev) => prev.map((t) => (t.id === optimistic.id ? created : t)));
+    } catch {
+      setTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
+      setErrorMessage("Could not create task right now.");
+    }
   };
 
-  const toggleTask = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
+  const toggleTask = async (taskId: string) => {
+    const snapshot = tasks;
+    const optimistic = tasks.map((task) =>
+      task.id === taskId ? { ...task, completed: !task.completed } : task
     );
+    setTasks(optimistic);
+
+    try {
+      const target = optimistic.find((task) => task.id === taskId);
+      if (target) {
+        await updateTask(taskId, { completed: target.completed });
+      }
+    } catch {
+      setTasks(snapshot);
+      setErrorMessage("Could not update task status right now.");
+    }
   };
 
   return (
@@ -141,13 +142,13 @@ export function TaskManagerWidget() {
               addTask();
             }
           }}
-          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-white/35 focus:outline-none focus:border-electric-blue"
+          className="flex-1 rounded-lg border border-(--glass-border) bg-white/70 dark:bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-(--foreground-muted) focus:outline-none focus:border-foreground"
           placeholder="Add a task"
         />
         <button
           type="button"
           onClick={addTask}
-          className="rounded-lg bg-(--accent-electric-blue)/20 px-3 py-2 text-xs font-semibold text-electric-blue hover:bg-(--accent-electric-blue)/30"
+          className="rounded-lg bg-black text-white dark:bg-white dark:text-black px-3 py-2 text-xs font-semibold hover:opacity-90"
         >
           Add
         </button>
@@ -158,22 +159,27 @@ export function TaskManagerWidget() {
       <div className="flex-1 space-y-2">
         {tasks.map((task) => (
           <motion.div key={task.id} layout>
-            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5">
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
               <button
                 type="button"
                 onClick={() => toggleTask(task.id)}
                 className="flex items-center gap-2 text-left"
               >
-                <span className={`h-4 w-4 rounded border border-white/30 ${task.completed ? "bg-emerald-500 border-emerald-500" : "bg-transparent"}`} />
-                <span className={`${task.completed ? "line-through text-gray-500" : ""}`}>
+                <span className={`h-4 w-4 rounded border border-(--glass-border) ${task.completed ? "bg-black border-black dark:bg-white dark:border-white" : "bg-transparent"}`} />
+                <span className={`${task.completed ? "line-through text-(--foreground-muted)" : "text-foreground"}`}>
                   {task.text}
                 </span>
               </button>
+              {task.dueDate ? (
+                <span className="text-[11px] text-(--foreground-muted) mr-2">
+                  {task.dueDate}
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={() => handleBreakDown(task.id)}
                 disabled={breakdownLoadingById[task.id]}
-                className="text-xs p-1 rounded hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-xs p-1 rounded text-foreground hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {breakdownLoadingById[task.id] ? "Analyzing..." : "✨ AI Break Down"}
               </button>

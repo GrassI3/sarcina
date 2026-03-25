@@ -30,11 +30,11 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
       </h3>
 
       {/* Mode toggle — proper block, no absolute positioning */}
-      <div className="flex gap-1 p-0.5 bg-white/5 rounded-full text-xs w-fit">
+      <div className="flex gap-1 p-0.5 bg-black/8 dark:bg-white/10 rounded-full text-xs w-fit">
         <button
           onClick={() => handleModeSwitch("work")}
           className={`px-4 py-1.5 rounded-full font-semibold transition-all ${
-            mode === "work" ? "bg-violet-500 text-white shadow-lg shadow-violet-500/30" : "text-white/40 hover:text-white"
+            mode === "work" ? "bg-black text-white dark:bg-white dark:text-black" : "text-(--foreground-muted) hover:text-foreground"
           }`}
         >
           Work
@@ -42,7 +42,7 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
         <button
           onClick={() => handleModeSwitch("break")}
           className={`px-4 py-1.5 rounded-full font-semibold transition-all ${
-            mode === "break" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "text-white/40 hover:text-white"
+            mode === "break" ? "bg-black text-white dark:bg-white dark:text-black" : "text-(--foreground-muted) hover:text-foreground"
           }`}
         >
           Break
@@ -55,7 +55,7 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
           <circle
             cx="70" cy="70" r={radius}
             stroke="currentColor" strokeWidth="6" fill="transparent"
-            className="text-white/5"
+            className="text-(--glass-border)"
           />
           <circle
             cx="70" cy="70" r={radius}
@@ -66,11 +66,11 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
           <defs>
             <linearGradient id="fw-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#8b5cf6" />
-              <stop offset="100%" stopColor="#d946ef" />
+              <stop offset="100%" stopColor="#5a5a5a" />
             </linearGradient>
             <linearGradient id="fb-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#10b981" />
-              <stop offset="100%" stopColor="#3b82f6" />
+              <stop offset="0%" stopColor="#9b9b9b" />
+              <stop offset="100%" stopColor="#d9d9d9" />
             </linearGradient>
           </defs>
         </svg>
@@ -78,7 +78,7 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
           <span className="text-3xl font-heading font-bold text-foreground tabular-nums">
             {formatTime(timeLeft)}
           </span>
-          <span className="text-[10px] uppercase tracking-widest text-white/40 mt-1">{mode}</span>
+          <span className="text-[10px] uppercase tracking-widest text-(--foreground-muted) mt-1">{mode}</span>
         </div>
       </div>
 
@@ -88,17 +88,17 @@ export function FocusTimerWidget({ setTimerActive }: FocusTimerWidgetProps) {
           onClick={toggleTimer}
           className={`w-11 h-11 rounded-full flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 shadow-lg ${
             isRunning
-              ? "bg-white/10 hover:bg-white/20"
+              ? "bg-black text-white hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/80"
               : mode === "work"
-              ? "bg-linear-to-tr from-violet-600 to-fuchsia-600 shadow-violet-500/30"
-              : "bg-linear-to-tr from-emerald-500 to-blue-500 shadow-emerald-500/30"
+              ? "bg-black text-white dark:bg-white dark:text-black"
+              : "bg-black text-white dark:bg-white dark:text-black"
           }`}
         >
           {isRunning ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
         </button>
         <button
           onClick={resetTimer}
-          className="w-11 h-11 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all hover:scale-105 active:scale-95"
+          className="w-11 h-11 rounded-full bg-black/8 dark:bg-white/10 hover:bg-black/12 dark:hover:bg-white/15 flex items-center justify-center text-(--foreground-muted) hover:text-foreground transition-all hover:scale-105 active:scale-95"
         >
           <RotateCcw size={16} />
         </button>

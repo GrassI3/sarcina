@@ -1,43 +1,61 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { getTimeOfDayQuotes } from "@/lib/quotes";
 
 const QUOTE_ROTATION_MS = 9000;
 
 export function QuoteTicker() {
-  const quotes = useMemo(() => getTimeOfDayQuotes(), []);
-  const [index, setIndex] = useState(0);
+  const [quote, setQuote] = useState("Loading fresh focus quote...");
 
   useEffect(() => {
-    if (quotes.length <= 1) {
-      return;
-    }
+    let active = true;
+
+    const fetchQuote = async () => {
+      try {
+        const response = await fetch("/api/meta/quote", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Quote request failed");
+        }
+        const payload = (await response.json()) as { quote?: string };
+        if (active && payload.quote) {
+          setQuote(payload.quote);
+        }
+      } catch {
+        if (active) {
+          setQuote("Stay in flow: one meaningful step at a time.");
+        }
+      }
+    };
+
+    fetchQuote();
 
     const timer = window.setInterval(() => {
-      setIndex((prev) => (prev + 1) % quotes.length);
+      fetchQuote();
     }, QUOTE_ROTATION_MS);
 
-    return () => window.clearInterval(timer);
-  }, [quotes]);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <section className="glass-card px-4 py-3 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/5 via-transparent to-lime-300/5 pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-r from-black/6 via-transparent to-black/6 dark:from-white/6 dark:to-white/6 pointer-events-none" />
       <div className="relative z-10 flex items-start gap-3">
-        <span className="mt-0.5 h-2 w-2 rounded-full bg-[var(--accent-electric-blue)] shadow-[0_0_10px_var(--accent-electric-blue)]" />
-        <div className="min-h-[24px] flex-1">
+        <span className="mt-0.5 h-2 w-2 rounded-full bg-electric-blue shadow-[0_0_10px_var(--accent-electric-blue)]" />
+        <div className="min-h-6 flex-1">
           <AnimatePresence mode="wait">
             <motion.p
-              key={quotes[index]}
+              key={quote}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.35 }}
-              className="text-sm text-foreground/90"
+              className="text-sm text-foreground"
             >
-              {quotes[index]}
+              {quote}
             </motion.p>
           </AnimatePresence>
         </div>
